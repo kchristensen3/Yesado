@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useHoneydew } from '../context/HoneydewContext';
+import { useYesado } from '../context/YesadoContext';
 import { Folder, Users, Plus, Trash2, Tag, Check, X, ShieldAlert, Sun, Moon, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { HoneydewLogo } from './HoneydewLogo';
+import { YesadoLogo } from './YesadoLogo';
 
 const AVATAR_BG_TEMPLATES = [
   'bg-emerald-500 text-white',
@@ -14,7 +14,7 @@ const AVATAR_BG_TEMPLATES = [
   'bg-indigo-500 text-white',
 ];
 
-export const HoneydewSidebar: React.FC = () => {
+export const YesadoSidebar: React.FC = () => {
   const {
     projects,
     tasks,
@@ -40,7 +40,7 @@ export const HoneydewSidebar: React.FC = () => {
     logout,
     filterPersonId,
     setFilterPersonId,
-  } = useHoneydew();
+  } = useYesado();
 
   const handlePersonClick = (id: string) => {
     if (filterPersonId === id) {
@@ -150,7 +150,7 @@ export const HoneydewSidebar: React.FC = () => {
       {/* Dynamic App Title */}
       <div className="flex items-center gap-3 mb-6" id="sidebar-header">
         <div className={`p-1.5 rounded-xl border transition-colors ${isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-250'}`} id="sidebar-logo">
-          <HoneydewLogo className="w-8 h-8" />
+          <YesadoLogo className="w-8 h-8" />
         </div>
         <div>
           <div className="flex items-center gap-1.5">
@@ -925,3 +925,6 @@ export const HoneydewSidebar: React.FC = () => {
     </div>
   );
 };
+
+export const HoneydewSidebar = YesadoSidebar;
+

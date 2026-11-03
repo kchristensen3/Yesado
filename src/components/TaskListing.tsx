@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useHoneydew } from '../context/HoneydewContext';
+import { useYesado } from '../context/YesadoContext';
 import { Task, TaskStatus } from '../types';
 import {
   CheckCircle2,
@@ -47,8 +47,9 @@ export const TaskListing: React.FC<TaskListingProps> = ({
     theme,
     filterPersonId,
     filterStatus,
+    setFilterStatus,
     filterPriority,
-  } = useHoneydew();
+  } = useYesado();
 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [newNoteText, setNewNoteText] = useState<Record<string, string>>({});
@@ -95,10 +96,31 @@ export const TaskListing: React.FC<TaskListingProps> = ({
     const projectMatch = selectedProjectId === 'all' || t.projectId === selectedProjectId;
     const searchMatch = !searchQuery.trim() || t.title.toLowerCase().includes(searchQuery.toLowerCase());
     const assigneeMatch = filterPersonId === 'all' || t.assigneeId === filterPersonId;
-    const statusMatch = filterStatus === 'all' || t.status === filterStatus;
+    
+    let statusMatch = true;
+    if (filterStatus === 'all') {
+      statusMatch = true;
+    } else if (filterStatus === 'active') {
+      statusMatch = t.status !== 'completed';
+    } else if (filterStatus === 'completed') {
+      statusMatch = t.status === 'completed';
+    } else {
+      statusMatch = t.status === filterStatus;
+    }
+
     const priorityMatch = filterPriority === 'all' || (t.priority || 'medium') === filterPriority;
     return projectMatch && searchMatch && assigneeMatch && statusMatch && priorityMatch;
   });
+
+  // Calculate hidden completed tasks count in current scope when filter is 'active'
+  const hiddenCompletedCount = tasks.filter((t) => {
+    const projectMatch = selectedProjectId === 'all' || t.projectId === selectedProjectId;
+    const searchMatch = !searchQuery.trim() || t.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const assigneeMatch = filterPersonId === 'all' || t.assigneeId === filterPersonId;
+    const kindMatch = activeKind === 'all' || (t.kind || 'project') === activeKind;
+    const priorityMatch = filterPriority === 'all' || (t.priority || 'medium') === filterPriority;
+    return projectMatch && searchMatch && assigneeMatch && kindMatch && priorityMatch && t.status === 'completed';
+  }).length;
 
   const totalCount = filteredTasks.length;
   const projectCount = filteredTasks.filter((t) => (t.kind || 'project') === 'project').length;
@@ -252,18 +274,41 @@ export const TaskListing: React.FC<TaskListingProps> = ({
       )}
 
       {sortedTasks.length === 0 ? (
-        <div className={`flex flex-col items-center justify-center p-12 text-center rounded-2xl border transition-colors ${isDark ? 'bg-[#18181c] border-[#2d2d34]' : 'bg-white border-stone-200 shadow-sm'}`} id="empty-state">
-          <div className={`p-4 rounded-full border mb-4 transition-colors ${isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`} id="empty-state-icon">
-            <svg className={`w-8 h-8 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+        <div className={`flex flex-col items-center justify-center p-10 md:p-12 text-center rounded-2xl border transition-colors ${isDark ? 'bg-[#18181c] border-[#2d2d34]' : 'bg-white border-stone-200 shadow-sm'}`} id="empty-state">
+          <div className={`p-4 rounded-full border mb-3.5 transition-colors ${
+            filterStatus === 'active' && hiddenCompletedCount > 0
+              ? 'bg-emerald-500/10 border-emerald-500/25'
+              : isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'
+          }`} id="empty-state-icon">
+            {filterStatus === 'active' && hiddenCompletedCount > 0 ? (
+              <CheckCircle2 className={`w-8 h-8 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+            ) : (
+              <svg className={`w-8 h-8 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            )}
           </div>
-          <h3 className={`text-lg font-bold mb-1.5 transition-colors ${isDark ? 'text-white' : 'text-stone-800'}`} id="empty-state-title">No matching tasks</h3>
-          <p className="text-sm text-stone-400 max-w-sm" id="empty-state-desc">
-            {searchQuery
+          <h3 className={`text-base md:text-lg font-bold mb-1.5 transition-colors ${isDark ? 'text-white' : 'text-stone-800'}`} id="empty-state-title">
+            {filterStatus === 'active' && hiddenCompletedCount > 0
+              ? 'All caught up!'
+              : 'No matching tasks'}
+          </h3>
+          <p className="text-xs md:text-sm text-stone-400 max-w-sm mb-3.5" id="empty-state-desc">
+            {filterStatus === 'active' && hiddenCompletedCount > 0
+              ? `All ${hiddenCompletedCount} task${hiddenCompletedCount === 1 ? ' is' : 's are'} completed in this view.`
+              : searchQuery
               ? `No house tasks matching "${searchQuery}" in this view.`
-              : "All clear! Quickly enter a task in the panel above to populate code actions."}
+              : "All clear! Quickly enter a task in the panel above to populate items."}
           </p>
+          {filterStatus === 'active' && hiddenCompletedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilterStatus('all')}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-stone-950 transition-all cursor-pointer shadow-xs"
+            >
+              View {hiddenCompletedCount} Completed Task{hiddenCompletedCount === 1 ? '' : 's'}
+            </button>
+          )}
         </div>
       ) : kindFilteredTasks.length === 0 ? (
         <div className={`flex flex-col items-center justify-center p-12 text-center rounded-2xl border transition-colors ${isDark ? 'bg-[#18181c] border-[#2d2d34]' : 'bg-white border-stone-200 shadow-sm'}`} id="empty-state-filter">
@@ -694,6 +739,30 @@ export const TaskListing: React.FC<TaskListingProps> = ({
               </motion.div>
             );
           })}
+        </div>
+      )}
+
+      {/* Subtle indicator when completed tasks are hidden in active view */}
+      {filterStatus === 'active' && sortedTasks.length > 0 && hiddenCompletedCount > 0 && (
+        <div
+          className={`flex items-center justify-between p-3 px-4 rounded-xl border text-xs transition-colors ${
+            isDark ? 'bg-[#141417] border-[#222226] text-stone-400' : 'bg-stone-50 border-stone-200 text-stone-600 shadow-xs'
+          }`}
+          id="hidden-completed-banner"
+        >
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>
+              <strong className={isDark ? 'text-stone-300' : 'text-stone-700'}>{hiddenCompletedCount}</strong> completed {hiddenCompletedCount === 1 ? 'task is' : 'tasks are'} hidden
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            className="font-bold text-emerald-500 hover:text-emerald-400 transition-colors cursor-pointer text-xs"
+          >
+            Show All
+          </button>
         </div>
       )}
     </div>

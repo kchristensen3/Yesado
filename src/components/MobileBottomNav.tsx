@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckSquare, RefreshCw, Plus, Folder, Home } from 'lucide-react';
-import { useHoneydew } from '../context/HoneydewContext';
+import { useYesado } from '../context/YesadoContext';
 
 export type MobileTab = 'tasks' | 'chores' | 'projects' | 'house';
 
@@ -21,7 +21,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   choreCount = 0,
   projectCount = 0,
 }) => {
-  const { theme, houses, activeHouseId } = useHoneydew();
+  const { theme, houses, activeHouseId } = useYesado();
   const isDark = theme === 'dark';
   const activeHouse = houses.find(h => h.id === activeHouseId);
 

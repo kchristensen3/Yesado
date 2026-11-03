@@ -5,7 +5,7 @@ import { auth, db, googleProvider, OperationType, handleFirestoreError } from '.
 import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, onSnapshot, query, where, setDoc, deleteDoc, getDocs, writeBatch } from 'firebase/firestore';
 
-interface HoneydewContextType {
+export interface YesadoContextType {
   tasks: Task[];
   projects: Project[];
   people: Person[];
@@ -67,7 +67,10 @@ interface HoneydewContextType {
   updatePerson: (personId: string, updates: Partial<Omit<Person, 'id' | 'createdAt' | 'collaborators'>>) => Promise<void>;
 }
 
-const HoneydewContext = createContext<HoneydewContextType | undefined>(undefined);
+export type HoneydewContextType = YesadoContextType;
+
+export const YesadoContext = createContext<YesadoContextType | undefined>(undefined);
+export const HoneydewContext = YesadoContext;
 
 const COLOR_TEMPLATES = ['emerald', 'amber', 'blue', 'stone', 'rose', 'indigo', 'violet', 'orange'];
 const AVATAR_BG_TEMPLATES = [
@@ -80,7 +83,7 @@ const AVATAR_BG_TEMPLATES = [
   'bg-indigo-500 text-white',
 ];
 
-export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const YesadoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [houses, setHouses] = useState<House[]>([]);
   const [activeHouseId, setActiveHouseId] = useState<string>(() => {
-    return localStorage.getItem('honeydew_active_house_id') || '';
+    return localStorage.getItem('yesado_active_house_id') || localStorage.getItem('honeydew_active_house_id') || '';
   });
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -99,22 +102,31 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'date' | 'status' | 'custom' | 'priority'>('custom');
   const [filterPersonId, setFilterPersonId] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>(() => {
+    return localStorage.getItem('yesado_filter_status') || 'active';
+  });
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('honeydew_theme');
+    const saved = localStorage.getItem('yesado_theme') || localStorage.getItem('honeydew_theme');
     return (saved as 'light' | 'dark') || 'dark';
   });
 
+  // Persist filterStatus
+  useEffect(() => {
+    if (filterStatus) {
+      localStorage.setItem('yesado_filter_status', filterStatus);
+    }
+  }, [filterStatus]);
+
   // Track light/dark mode preference locally
   useEffect(() => {
-    localStorage.setItem('honeydew_theme', theme);
+    localStorage.setItem('yesado_theme', theme);
   }, [theme]);
 
   // Track active House ID local storage
   useEffect(() => {
     if (activeHouseId) {
-      localStorage.setItem('honeydew_active_house_id', activeHouseId);
+      localStorage.setItem('yesado_active_house_id', activeHouseId);
     }
   }, [activeHouseId]);
 
@@ -182,14 +194,15 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           
           if (snap.empty) {
             // Check if they are collaborator on any houses before seeding
-            const userEmail = (currentUser.email || '').trim().toLowerCase();
-            let collabSnap;
-            try {
-              const hCollabQuery = query(houseRef, where('collaborators', 'array-contains', userEmail));
-              collabSnap = await getDocs(hCollabQuery);
-            } catch (e) {
-              handleFirestoreError(e, OperationType.LIST, 'houses');
-              return;
+            const rawEmail = (currentUser.email || '').trim();
+            let collabSnap: any = { empty: true };
+            if (rawEmail) {
+              try {
+                const hCollabQuery = query(houseRef, where('collaborators', 'array-contains', rawEmail));
+                collabSnap = await getDocs(hCollabQuery);
+              } catch (e) {
+                console.warn('Checking collab houses warning:', e);
+              }
             }
             
             if (collabSnap.empty) {
@@ -198,7 +211,7 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               const batch = writeBatch(db);
               
               const newHouseId = `house_${Date.now()}`;
-              const initialCollabs = userEmail ? [userEmail] : [];
+              const initialCollabs = rawEmail ? Array.from(new Set([rawEmail, rawEmail.toLowerCase()])) : [];
               
               const newHouseDoc = doc(db, 'houses', newHouseId);
               batch.set(newHouseDoc, {
@@ -272,17 +285,15 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   // Listeners for Real-Time cloud sync
+  // Listeners for Real-Time cloud sync
   useEffect(() => {
     if (!user) return;
 
-    const userEmail = (user.email || '').trim().toLowerCase();
+    const rawEmail = (user.email || '').trim();
 
     // Query houses where user is OWNER
     const hOwnerQuery = query(collection(db, 'houses'), where('ownerId', '==', user.uid));
     
-    // Query houses where user is COLLABORATOR
-    const hCollabQuery = query(collection(db, 'houses'), where('collaborators', 'array-contains', userEmail));
-
     let ownerHouses: House[] = [];
     let collabHouses: House[] = [];
 
@@ -296,7 +307,7 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setHouses(merged);
 
       if (merged.length > 0) {
-        const stored = localStorage.getItem('honeydew_active_house_id');
+        const stored = localStorage.getItem('yesado_active_house_id') || localStorage.getItem('honeydew_active_house_id');
         const exists = merged.some((h) => h.id === stored);
         if (exists && stored) {
           setActiveHouseId(stored);
@@ -324,21 +335,24 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     );
 
-    const unsubCollab = onSnapshot(
-      hCollabQuery,
-      (snap) => {
-        const list: House[] = [];
-        snap.forEach((doc) => {
-          list.push({ id: doc.id, ...doc.data() } as House);
-        });
-        collabHouses = list;
-        syncHousesMerged(ownerHouses, collabHouses);
-      },
-      (err) => {
-        console.error("Collab houses onSnapshot error:", err);
-        setFirestoreError(err.message || String(err));
-      }
-    );
+    let unsubCollab = () => {};
+    if (rawEmail) {
+      const hCollabQuery = query(collection(db, 'houses'), where('collaborators', 'array-contains', rawEmail));
+      unsubCollab = onSnapshot(
+        hCollabQuery,
+        (snap) => {
+          const list: House[] = [];
+          snap.forEach((doc) => {
+            list.push({ id: doc.id, ...doc.data() } as House);
+          });
+          collabHouses = list;
+          syncHousesMerged(ownerHouses, collabHouses);
+        },
+        (err) => {
+          console.warn("Collab houses onSnapshot:", err);
+        }
+      );
+    }
 
     return () => {
       unsubOwner();
@@ -355,78 +369,132 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return;
     }
 
-    const userEmail = (user.email || '').trim().toLowerCase();
+    const rawEmail = (user.email || '').trim();
 
-    // Projects Listener
-    const unsubProjects = onSnapshot(
-      query(
-        collection(db, 'projects'), 
-        where('collaborators', 'array-contains', userEmail)
-      ),
+    // 1. Projects sync: query owner projects + collaborator projects and merge
+    let ownerProjects: Project[] = [];
+    let collabProjects: Project[] = [];
+    const syncProjectsMerged = (owned: Project[], shared: Project[]) => {
+      const map = new Map<string, Project>();
+      owned.forEach(p => { if (p.houseId === activeHouseId) map.set(p.id, p); });
+      shared.forEach(p => { if (p.houseId === activeHouseId) map.set(p.id, p); });
+      setProjects(Array.from(map.values()));
+    };
+
+    const unsubProjOwner = onSnapshot(
+      query(collection(db, 'projects'), where('ownerId', '==', user.uid)),
       (snap) => {
         const loaded: Project[] = [];
-        snap.forEach((doc) => {
-          const data = doc.data() as Project;
-          if (data.houseId === activeHouseId) {
-            loaded.push({ id: doc.id, ...data });
-          }
-        });
-        setProjects(loaded);
+        snap.forEach((doc) => loaded.push({ id: doc.id, ...doc.data() } as Project));
+        ownerProjects = loaded;
+        syncProjectsMerged(ownerProjects, collabProjects);
       },
       (err) => {
-        console.error("Projects list snapshot error:", err);
-        setFirestoreError(err.message || String(err));
+        console.error("Projects owner snapshot error:", err);
       }
     );
 
-    // People Listener
-    const unsubPeople = onSnapshot(
-      query(
-        collection(db, 'people'), 
-        where('collaborators', 'array-contains', userEmail)
-      ),
+    let unsubProjCollab = () => {};
+    if (rawEmail) {
+      unsubProjCollab = onSnapshot(
+        query(collection(db, 'projects'), where('collaborators', 'array-contains', rawEmail)),
+        (snap) => {
+          const loaded: Project[] = [];
+          snap.forEach((doc) => loaded.push({ id: doc.id, ...doc.data() } as Project));
+          collabProjects = loaded;
+          syncProjectsMerged(ownerProjects, collabProjects);
+        },
+        (err) => {
+          console.warn("Projects collab snapshot:", err);
+        }
+      );
+    }
+
+    // 2. People sync: query owner people + collaborator people and merge
+    let ownerPeople: Person[] = [];
+    let collabPeople: Person[] = [];
+    const syncPeopleMerged = (owned: Person[], shared: Person[]) => {
+      const map = new Map<string, Person>();
+      owned.forEach(pe => { if (pe.houseId === activeHouseId) map.set(pe.id, pe); });
+      shared.forEach(pe => { if (pe.houseId === activeHouseId) map.set(pe.id, pe); });
+      setPeople(Array.from(map.values()));
+    };
+
+    const unsubPeopleOwner = onSnapshot(
+      query(collection(db, 'people'), where('ownerId', '==', user.uid)),
       (snap) => {
         const loaded: Person[] = [];
-        snap.forEach((doc) => {
-          const data = doc.data() as Person;
-          if (data.houseId === activeHouseId) {
-            loaded.push({ id: doc.id, ...data });
-          }
-        });
-        setPeople(loaded);
+        snap.forEach((doc) => loaded.push({ id: doc.id, ...doc.data() } as Person));
+        ownerPeople = loaded;
+        syncPeopleMerged(ownerPeople, collabPeople);
       },
       (err) => {
-        console.error("People list snapshot error:", err);
-        setFirestoreError(err.message || String(err));
+        console.error("People owner snapshot error:", err);
       }
     );
 
-    // Tasks Listener
-    const unsubTasks = onSnapshot(
-      query(
-        collection(db, 'tasks'), 
-        where('collaborators', 'array-contains', userEmail)
-      ),
+    let unsubPeopleCollab = () => {};
+    if (rawEmail) {
+      unsubPeopleCollab = onSnapshot(
+        query(collection(db, 'people'), where('collaborators', 'array-contains', rawEmail)),
+        (snap) => {
+          const loaded: Person[] = [];
+          snap.forEach((doc) => loaded.push({ id: doc.id, ...doc.data() } as Person));
+          collabPeople = loaded;
+          syncPeopleMerged(ownerPeople, collabPeople);
+        },
+        (err) => {
+          console.warn("People collab snapshot:", err);
+        }
+      );
+    }
+
+    // 3. Tasks sync: query owner tasks + collaborator tasks and merge
+    let ownerTasks: Task[] = [];
+    let collabTasks: Task[] = [];
+    const syncTasksMerged = (owned: Task[], shared: Task[]) => {
+      const map = new Map<string, Task>();
+      owned.forEach(t => { if (t.houseId === activeHouseId) map.set(t.id, t); });
+      shared.forEach(t => { if (t.houseId === activeHouseId) map.set(t.id, t); });
+      setTasks(Array.from(map.values()));
+    };
+
+    const unsubTasksOwner = onSnapshot(
+      query(collection(db, 'tasks'), where('ownerId', '==', user.uid)),
       (snap) => {
         const loaded: Task[] = [];
-        snap.forEach((doc) => {
-          const data = doc.data() as Task;
-          if (data.houseId === activeHouseId) {
-            loaded.push({ id: doc.id, ...data });
-          }
-        });
-        setTasks(loaded);
+        snap.forEach((doc) => loaded.push({ id: doc.id, ...doc.data() } as Task));
+        ownerTasks = loaded;
+        syncTasksMerged(ownerTasks, collabTasks);
       },
       (err) => {
-        console.error("Tasks list snapshot error:", err);
-        setFirestoreError(err.message || String(err));
+        console.error("Tasks owner snapshot error:", err);
       }
     );
 
+    let unsubTasksCollab = () => {};
+    if (rawEmail) {
+      unsubTasksCollab = onSnapshot(
+        query(collection(db, 'tasks'), where('collaborators', 'array-contains', rawEmail)),
+        (snap) => {
+          const loaded: Task[] = [];
+          snap.forEach((doc) => loaded.push({ id: doc.id, ...doc.data() } as Task));
+          collabTasks = loaded;
+          syncTasksMerged(ownerTasks, collabTasks);
+        },
+        (err) => {
+          console.warn("Tasks collab snapshot:", err);
+        }
+      );
+    }
+
     return () => {
-      unsubProjects();
-      unsubPeople();
-      unsubTasks();
+      unsubProjOwner();
+      unsubProjCollab();
+      unsubPeopleOwner();
+      unsubPeopleCollab();
+      unsubTasksOwner();
+      unsubTasksCollab();
     };
   }, [user, activeHouseId]);
 
@@ -769,7 +837,7 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   return (
-    <HoneydewContext.Provider
+    <YesadoContext.Provider
       value={{
         tasks,
         projects,
@@ -819,14 +887,19 @@ export const HoneydewProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }}
     >
       {children}
-    </HoneydewContext.Provider>
+    </YesadoContext.Provider>
   );
 };
 
-export const useHoneydew = () => {
-  const context = useContext(HoneydewContext);
+export const HoneydewProvider = YesadoProvider;
+
+export const useYesado = () => {
+  const context = useContext(YesadoContext);
   if (!context) {
-    throw new Error('useHoneydew must be used within a HoneydewProvider');
+    throw new Error('useYesado must be used within a YesadoProvider');
   }
   return context;
 };
+
+export const useHoneydew = useYesado;
+

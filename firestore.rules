@@ -27,7 +27,7 @@ service cloud.firestore {
         && 'email' in request.auth.token 
         && 'collaborators' in data 
         && data.collaborators is list 
-        && (request.auth.token.email in data.collaborators || request.auth.token.email.lower() in data.collaborators);
+        && request.auth.token.email in data.collaborators;
     }
     
     // Entity validations
@@ -89,9 +89,10 @@ service cloud.firestore {
     
     // Collection matches
     match /houses/{houseId} {
-      allow get, delete: if isValidId(houseId) && (isOwner(existing()) || isCollab(existing()));
+      allow get: if isValidId(houseId) && (isOwner(existing()) || isCollab(existing()));
+      allow delete: if isValidId(houseId) && isOwner(existing());
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && request.auth.token.email in resource.data.collaborators;
       allow create: if isSignedIn() && isValidId(houseId) && isValidHouse(incoming());
       allow update: if isSignedIn() && isValidId(houseId) && isValidHouse(incoming())
         && isOwner(existing())
@@ -102,7 +103,7 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow get, delete: if isValidId(projectId) && (isOwner(existing()) || isCollab(existing()));
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && request.auth.token.email in resource.data.collaborators;
       allow create: if isSignedIn() && isValidId(projectId) && isValidProject(incoming());
       allow update: if isSignedIn() && isValidId(projectId) && isValidProject(incoming())
         && (isOwner(existing()) || isCollab(existing()))
@@ -114,7 +115,7 @@ service cloud.firestore {
     match /people/{personId} {
       allow get, delete: if isValidId(personId) && (isOwner(existing()) || isCollab(existing()));
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && request.auth.token.email in resource.data.collaborators;
       allow create: if isSignedIn() && isValidId(personId) && isValidPerson(incoming());
       allow update: if isSignedIn() && isValidId(personId) && isValidPerson(incoming())
         && (isOwner(existing()) || isCollab(existing()))
@@ -125,7 +126,7 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow get, delete: if isValidId(taskId) && (isOwner(existing()) || isCollab(existing()));
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && request.auth.token.email in resource.data.collaborators;
       allow create: if isSignedIn() && isValidId(taskId) && isValidTask(incoming());
       allow update: if isSignedIn() && isValidId(taskId) && isValidTask(incoming())
         && (isOwner(existing()) || isCollab(existing()))
