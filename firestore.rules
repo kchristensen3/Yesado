@@ -1,0 +1,136 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Global helper functions
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { 
+      return request.resource.data; 
+    }
+    function existing() { 
+      return resource.data; 
+    }
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+    function isOwner(data) {
+      return isSignedIn() && 'ownerId' in data && data.ownerId == request.auth.uid;
+    }
+    function isCollab(data) {
+      return isSignedIn() 
+        && request.auth.token != null 
+        && 'email' in request.auth.token 
+        && 'collaborators' in data 
+        && data.collaborators is list 
+        && (request.auth.token.email in data.collaborators || request.auth.token.email.lower() in data.collaborators);
+    }
+    
+    // Entity validations
+    function isValidHouse(data) {
+      return data.keys().hasAll(['id', 'name', 'ownerId', 'collaborators', 'createdAt'])
+        && (data.keys().size() >= 5 && data.keys().size() <= 7)
+        && isValidId(data.id)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && (!('address' in data) || (data.address is string && data.address.size() <= 400))
+        && (!('propertyType' in data) || (data.propertyType is string && data.propertyType.size() <= 100))
+        && data.ownerId == request.auth.uid
+        && data.collaborators is list
+        && data.collaborators.size() <= 50
+        && data.createdAt is string;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['id', 'houseId', 'name', 'colorClass', 'ownerId', 'collaborators', 'createdAt'])
+        && (data.keys().size() >= 7 && data.keys().size() <= 8)
+        && isValidId(data.id)
+        && isValidId(data.houseId)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && (!('description' in data) || (data.description is string && data.description.size() <= 600))
+        && data.colorClass is string && data.colorClass.size() > 0 && data.colorClass.size() <= 50
+        && data.ownerId == request.auth.uid
+        && data.collaborators is list
+        && data.createdAt is string; 
+    }
+    
+    function isValidPerson(data) {
+      return data.keys().hasAll(['id', 'houseId', 'name', 'colorClass', 'ownerId', 'collaborators', 'createdAt'])
+        && data.keys().size() == 7
+        && isValidId(data.id)
+        && isValidId(data.houseId)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.colorClass is string && data.colorClass.size() > 0 && data.colorClass.size() <= 100
+        && data.ownerId == request.auth.uid
+        && data.collaborators is list
+        && data.createdAt is string;
+    }
+    
+    function isValidTask(data) {
+      return data.keys().hasAll(['id', 'houseId', 'projectId', 'title', 'status', 'createdAt', 'kind', 'priority', 'ownerId', 'collaborators'])
+        && (data.keys().size() >= 10 && data.keys().size() <= 13)
+        && isValidId(data.id)
+        && isValidId(data.houseId)
+        && isValidId(data.projectId)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+        && data.status in ['pending', 'in_progress', 'completed']
+        && data.kind in ['chore', 'project']
+        && data.priority in ['high', 'medium', 'low']
+        && data.ownerId == request.auth.uid
+        && data.collaborators is list
+        && (!('targetDate' in data) || data.targetDate is string)
+        && (!('assigneeId' in data) || data.assigneeId is string)
+        && (!('notes' in data) || data.notes is list)
+        && data.createdAt is string;
+    }
+    
+    // Collection matches
+    match /houses/{houseId} {
+      allow get, delete: if isValidId(houseId) && (isOwner(existing()) || isCollab(existing()));
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow create: if isSignedIn() && isValidId(houseId) && isValidHouse(incoming());
+      allow update: if isSignedIn() && isValidId(houseId) && isValidHouse(incoming())
+        && isOwner(existing())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt;
+    }
+
+    match /projects/{projectId} {
+      allow get, delete: if isValidId(projectId) && (isOwner(existing()) || isCollab(existing()));
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow create: if isSignedIn() && isValidId(projectId) && isValidProject(incoming());
+      allow update: if isSignedIn() && isValidId(projectId) && isValidProject(incoming())
+        && (isOwner(existing()) || isCollab(existing()))
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt;
+    }
+    
+    // People and tasks matches follow the same secure inline list rules
+    match /people/{personId} {
+      allow get, delete: if isValidId(personId) && (isOwner(existing()) || isCollab(existing()));
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow create: if isSignedIn() && isValidId(personId) && isValidPerson(incoming());
+      allow update: if isSignedIn() && isValidId(personId) && isValidPerson(incoming())
+        && (isOwner(existing()) || isCollab(existing()))
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt;
+    }
+    
+    match /tasks/{taskId} {
+      allow get, delete: if isValidId(taskId) && (isOwner(existing()) || isCollab(existing()));
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow list: if isSignedIn() && 'email' in request.auth.token && 'collaborators' in resource.data && resource.data.collaborators is list && (request.auth.token.email in resource.data.collaborators || request.auth.token.email.lower() in resource.data.collaborators);
+      allow create: if isSignedIn() && isValidId(taskId) && isValidTask(incoming());
+      allow update: if isSignedIn() && isValidId(taskId) && isValidTask(incoming())
+        && (isOwner(existing()) || isCollab(existing()))
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt;
+    }
+  }
+}

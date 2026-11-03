@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "house": {
+      "title": "House",
+      "description": "A house or property container",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "propertyType": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "collaborators": {
+          "type": "array",
+          "description": "A list of collaborator emails allowed to view and edit this house"
+        },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "ownerId", "collaborators", "createdAt"]
+    },
+    "project": {
+      "title": "Project",
+      "description": "A project container for organizing tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "houseId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "colorClass": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "collaborators": {
+          "type": "array",
+          "description": "A copy of house collaborators for validation and indexing"
+        },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "houseId", "name", "colorClass", "ownerId", "collaborators", "createdAt"]
+    },
+    "person": {
+      "title": "Person",
+      "description": "A family member or collaborator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "houseId": { "type": "string" },
+        "name": { "type": "string" },
+        "colorClass": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "collaborators": {
+          "type": "array",
+          "description": "A copy of house collaborators for validation and indexing"
+        },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "houseId", "name", "colorClass", "ownerId", "collaborators", "createdAt"]
+    },
+    "task": {
+      "title": "Task",
+      "description": "A project task or everyday chore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "houseId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] },
+        "targetDate": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "notes": {
+          "type": "array",
+          "description": "A list of short task comments or notes"
+        },
+        "createdAt": { "type": "string" },
+        "kind": { "type": "string", "enum": ["chore", "project"] },
+        "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+        "ownerId": { "type": "string" },
+        "collaborators": {
+          "type": "array",
+          "description": "A copy of house collaborators for validation and indexing"
+        }
+      },
+      "required": ["id", "houseId", "projectId", "title", "status", "createdAt", "kind", "priority", "ownerId", "collaborators"]
+    }
+  },
+  "firestore": {
+    "houses": {
+      "schema": "house",
+      "description": "User properties and houses"
+    },
+    "projects": {
+      "schema": "project",
+      "description": "User custom projects"
+    },
+    "people": {
+      "schema": "person",
+      "description": "User team members or family"
+    },
+    "tasks": {
+      "schema": "task",
+      "description": "User tasks"
+    }
+  }
+}

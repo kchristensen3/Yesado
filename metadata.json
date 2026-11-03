@@ -1,0 +1,6 @@
+{
+  "name": "Honeydew",
+  "description": "A quick and intuitive house project list to easily group, plan, and assign tasks with your spouse.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
